@@ -1,4 +1,4 @@
-# ros_project_generator
+# ROS2 FRC Project Generator
 
 A new Flutter project.
 
