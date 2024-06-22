@@ -21,23 +21,100 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
         ),
-        home:
-            const MyHomePage(title: 'ROS Project Generator for FRC Home Page'),
+        home: const HomePage(),
+        routes: {
+          '/node': (context) => const NodePage(),
+        },
       ),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  final String title;
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _HomePageState extends State<HomePage> {
+  final TextEditingController _projectController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final projectManager = Provider.of<ProjectManager>(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: const Text('ROS Project Generator for FRC Home Page'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            const Text(
+              'Enter your project name:',
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                controller: _projectController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Project Name',
+                ),
+                onChanged: (value) {
+                  projectManager.setProjectName(value);
+                },
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/node');
+              },
+              child: const Text('Add Nodes'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => _selectFolderAndCloneRepo(context),
+              child: const Text('Select Folder and Clone Repo'),
+            ),
+            if (projectManager.statusMessage.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(
+                  projectManager.statusMessage,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectFolderAndCloneRepo(BuildContext context) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    if (selectedDirectory == null) {
+      return; // User canceled the picker
+    }
+    if (!context.mounted) {
+      return; // Prevents the error: Looking up a deactivated widget's ancestor is unsafe
+    }
+    final projectManager = Provider.of<ProjectManager>(context, listen: false);
+    projectManager.cloneRepoAndCreateFolder(selectedDirectory);
+  }
+}
+
+class NodePage extends StatefulWidget {
+  const NodePage({super.key});
+
+  @override
+  State<NodePage> createState() => _NodePageState();
+}
+
+class _NodePageState extends State<NodePage> {
   final TextEditingController _nodeController = TextEditingController();
 
   @override
@@ -47,7 +124,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
+        title: const Text('Add Nodes'),
       ),
       body: Center(
         child: Column(
@@ -95,43 +172,32 @@ class _MyHomePageState extends State<MyHomePage> {
                 },
               ),
             ),
-            if (projectManager.statusMessage.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  projectManager.statusMessage,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
+            const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => _selectFolderAndCloneRepo(context),
-              child: const Text('Select Folder and Clone Repo'),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Done'),
             ),
           ],
         ),
       ),
     );
   }
-
-  Future<void> _selectFolderAndCloneRepo(BuildContext context) async {
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
-    if (selectedDirectory == null) {
-      return; // User canceled the picker
-    }
-    if (!mounted) {
-      return; // Prevents the error: Looking up a deactivated widget's ancestor is unsafe
-    }
-    final projectManager = Provider.of<ProjectManager>(context, listen: false);
-    projectManager.cloneRepoAndCreateFolder(selectedDirectory);
-  }
 }
 
 class ProjectManager extends ChangeNotifier {
   String statusMessage = '';
   List<String> nodes = [];
+  String projectName = '';
 
   void addNode(String node) {
     nodes.add(node);
+    notifyListeners();
+  }
+
+  void setProjectName(String name) {
+    projectName = name;
     notifyListeners();
   }
 
@@ -152,7 +218,7 @@ class ProjectManager extends ChangeNotifier {
       notifyListeners();
 
       // Create a new folder alongside the cloned repo
-      final newFolder = Directory('$selectedDirectory/new_folder');
+      final newFolder = Directory('$selectedDirectory/$projectName');
       await newFolder.create();
 
       statusMessage =
